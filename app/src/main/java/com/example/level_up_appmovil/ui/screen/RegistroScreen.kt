@@ -1,7 +1,6 @@
-package com.example.level_up_appmovil.ui.screen // Revisa tu package
+package com.example.level_up_appmovil.ui.screen
 
 import android.os.Build
-import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -9,148 +8,175 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.level_up_appmovil.model.AuthUiState
+import com.example.level_up_appmovil.viewmodel.AuthUiState
 import com.example.level_up_appmovil.viewmodel.AuthViewModel
+import kotlinx.coroutines.launch
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+
+@RequiresApi(Build.VERSION_CODES.O)
+@Composable
+fun RegistroRoute(
+    onRegisterSuccess: () -> Unit,
+    onBackToLoginClick: () -> Unit,
+    authViewModel: AuthViewModel = viewModel()
+) {
+    val uiState by authViewModel.uiState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+
+    RegistroScreen(
+        uiState = uiState,
+        snackbarHostState = snackbarHostState,
+        onEmailChange = { authViewModel.onRegEmailChange(it) },
+        onPasswordChange = { authViewModel.onRegPassChange(it) },
+        onConfirmPasswordChange = { authViewModel.onRegConfirmPassChange(it) },
+        onDateSelected = { authViewModel.onDateSelected(it) },
+        onShowDatePicker = { authViewModel.showDatePicker(it) },
+        onRegisterClick = { authViewModel.onRegisterClick() },
+        onBackToLoginClick = onBackToLoginClick
+    )
+
+    LaunchedEffect(uiState.isRegistrationSuccessful) {
+        if (uiState.isRegistrationSuccessful) {
+            onRegisterSuccess()
+            authViewModel.resetRegistrationState()
+        }
+    }
+
+    LaunchedEffect(uiState.errorMessage) {
+        uiState.errorMessage?.let {
+            scope.launch {
+                snackbarHostState.showSnackbar(it)
+                authViewModel.dismissError()
+            }
+        }
+    }
+}
 
 @RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RegisterScreen(
-    viewModel: AuthViewModel,
-    onRegisterSuccess: () -> Unit,
+fun RegistroScreen(
+    uiState: AuthUiState,
+    snackbarHostState: SnackbarHostState,
+    onEmailChange: (String) -> Unit,
+    onPasswordChange: (String) -> Unit,
+    onConfirmPasswordChange: (String) -> Unit,
+    onDateSelected: (LocalDate) -> Unit,
+    onShowDatePicker: (Boolean) -> Unit,
+    onRegisterClick: () -> Unit,
     onBackToLoginClick: () -> Unit
 ) {
-    val uiState by viewModel.uiState.collectAsState()
-    val context = LocalContext.current
-
-    // Colores del documento
     val backgroundColor = Color(0xFFFCFCFD)
     val primaryTextColor = Color(0xFF1E90FF)
-    val accentColor = Color(0xFF39FF14) // Verde Neón para registro
+    val accentColor = Color(0xFF39FF14)
 
-    // Observador de errores o éxito
-    LaunchedEffect(uiState.errorMessage) {
-        uiState.errorMessage?.let {
-            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
-            viewModel.dismissError() // Limpia el error después de mostrarlo
-            if (uiState.registrationSuccess) {
-                onRegisterSuccess() // Navega de vuelta al Login
-            }
-        }
-    }
-
-    // --- DIALOGO DE CALENDARIO ---
     if (uiState.showDatePicker) {
-        val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = System.currentTimeMillis()
-        )
+        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = System.currentTimeMillis())
         DatePickerDialog(
-            onDismissRequest = { viewModel.showDatePicker(false) },
+            onDismissRequest = { onShowDatePicker(false) },
             confirmButton = {
                 Button(onClick = {
                     datePickerState.selectedDateMillis?.let {
-                        val selectedDate = LocalDate.ofEpochDay(it / (1000 * 60 * 60 * 24))
-                        viewModel.onDateSelected(selectedDate)
+                        val selectedDate = Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
+                        onDateSelected(selectedDate)
                     }
                 }) { Text("Aceptar") }
             },
             dismissButton = {
-                TextButton(onClick = { viewModel.showDatePicker(false) }) { Text("Cancelar") }
+                TextButton(onClick = { onShowDatePicker(false) }) { Text("Cancelar") }
             }
         ) {
             DatePicker(state = datePickerState)
         }
     }
 
-    // --- UI DE LA PANTALLA ---
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(backgroundColor)
-            .padding(16.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = "REGISTRO",
-                color = primaryTextColor,
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(24.dp))
+    Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(it)
+                .background(backgroundColor)
+                .padding(16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = "REGISTRO",
+                    color = primaryTextColor,
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(24.dp))
 
-            OutlinedTextField(
-                value = uiState.regEmail,
-                onValueChange = { viewModel.onRegEmailChange(it) },
-                label = { Text("Correo Electrónico") },
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Campo de Fecha de Nacimiento (Fake TextField)
-            OutlinedTextField(
-                value = uiState.birthDate?.format(DateTimeFormatter.ISO_LOCAL_DATE) ?: "",
-                onValueChange = {},
-                label = { Text("Fecha de Nacimiento (MM/DD/YYYY)") },
-                trailingIcon = {
-                    Icon(Icons.Default.DateRange, "Select Date")
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { viewModel.showDatePicker(true) },
-                readOnly = true,
-                enabled = false // Se deshabilita para forzar el clic
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = uiState.regPass,
-                onValueChange = { viewModel.onRegPassChange(it) },
-                label = { Text("Contraseña") },
-                modifier = Modifier.fillMaxWidth(),
-                visualTransformation = PasswordVisualTransformation()
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = uiState.regConfirmPass,
-                onValueChange = { viewModel.onRegConfirmPassChange(it) },
-                label = { Text("Confirmar Contraseña") },
-                modifier = Modifier.fillMaxWidth(),
-                visualTransformation = PasswordVisualTransformation()
-            )
-            Spacer(modifier = Modifier.height(24.dp))
-
-            if (uiState.isLoading) {
-                CircularProgressIndicator(color = accentColor)
-            } else {
-                Button(
-                    onClick = { viewModel.onRegisterClick() },
+                OutlinedTextField(
+                    value = uiState.regEmail,
+                    onValueChange = onEmailChange,
+                    label = { Text("Correo Electrónico") },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = accentColor)
-                ) {
-                    Text("Registrarse", color = Color.Black)
-                }
-            }
+                    isError = uiState.errorMessage != null
+                )
+                Spacer(modifier = Modifier.height(16.dp))
 
-            TextButton(onClick = onBackToLoginClick) {
-                Text("¿Ya tienes cuenta? Inicia Sesión", color = Color.Blue)
+                OutlinedTextField(
+                    value = uiState.birthDate?.format(DateTimeFormatter.ISO_LOCAL_DATE) ?: "",
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Fecha de Nacimiento") },
+                    trailingIcon = { Icon(Icons.Default.DateRange, "Select Date") },
+                    modifier = Modifier.fillMaxWidth().clickable { onShowDatePicker(true) },
+                    isError = uiState.errorMessage?.contains("edad") == true
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = uiState.regPass,
+                    onValueChange = onPasswordChange,
+                    label = { Text("Contraseña") },
+                    modifier = Modifier.fillMaxWidth(),
+                    visualTransformation = PasswordVisualTransformation(),
+                    isError = uiState.errorMessage?.contains("contraseñas") == true
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = uiState.regConfirmPass,
+                    onValueChange = onConfirmPasswordChange,
+                    label = { Text("Confirmar Contraseña") },
+                    modifier = Modifier.fillMaxWidth(),
+                    visualTransformation = PasswordVisualTransformation(),
+                    isError = uiState.errorMessage?.contains("contraseñas") == true
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+
+                if (uiState.isLoading) {
+                    CircularProgressIndicator(color = accentColor)
+                } else {
+                    Button(
+                        onClick = onRegisterClick,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = accentColor)
+                    ) {
+                        Text("Registrarse", color = Color.Black)
+                    }
+                }
+
+                TextButton(onClick = onBackToLoginClick) {
+                    Text("¿Ya tienes cuenta? Inicia Sesión", color = Color.Blue)
+                }
             }
         }
     }
@@ -160,9 +186,15 @@ fun RegisterScreen(
 @Preview(showBackground = true)
 @Composable
 fun RegisterScreenPreview() {
-    RegisterScreen(
-        viewModel = viewModel(), // ViewModel de preview
-        onRegisterSuccess = {},
+    RegistroScreen(
+        uiState = AuthUiState(),
+        snackbarHostState = remember { SnackbarHostState() },
+        onEmailChange = {},
+        onPasswordChange = {},
+        onConfirmPasswordChange = {},
+        onDateSelected = {},
+        onShowDatePicker = {},
+        onRegisterClick = {},
         onBackToLoginClick = {}
     )
 }
